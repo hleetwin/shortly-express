@@ -33,6 +33,16 @@ function(req, res) {
   res.render('index');
 });
 
+app.get('/signup',
+function(req, res) {
+  res.render('signup');
+});
+
+app.get('/login',
+function(req, res) {
+  res.render('login');
+});
+
 app.get('/links', 
 function(req, res) {
   Links.reset().fetch().then(function(links) {
@@ -75,7 +85,25 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
-
+app.post('/signup', function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+  new User({username: username, password: password}).fetch().then(function(found) {
+    if(found) {
+      //redirect to /logins
+      res.redirect('/login');
+    } else{
+    //route to collection
+      Users.create({
+        username: username,
+        password: password
+      })
+      .then(function(newUser) {
+        res.send(200, newUser);
+      });
+    }
+  });
+});
 
 
 /************************************************************/
