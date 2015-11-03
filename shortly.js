@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var bcrypt = require('bcrypt-nodejs')
 
 
 var db = require('./app/config');
@@ -76,6 +77,7 @@ function(req, res) {
         })
         .then(function(newLink) {
           res.send(200, newLink);
+          console.log(newLink);
         });
       });
     }
@@ -88,23 +90,24 @@ function(req, res) {
 app.post('/signup', function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
-  new User({username: username, password: password}).fetch().then(function(found) {
+  new User({username: username}).fetch().then(function(found) {
     if(found) {
       //redirect to /logins
-      res.redirect('/login');
-    } else{
-    //route to collection
-      Users.create({
-        username: username,
-        password: password
-      })
-      .then(function(newUser) {
-        res.send(200, newUser);
+      var message = {message: "<div>Sorry!  You already have an account!</div>"};
+      res.render('signup', message);
+    } else {
+      bcrypt.hash("req.body.password", null, null, function(err, hash) {
+        var user = new User({username: username, password: hash});
+      });
+      user.save().then(function(newUser) {
+        Users.add(newUser);
+        req.session.isAuthenticated = true;
+        res.redirect('/');
       });
     }
   });
 });
-
+// Users.add(user)
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
