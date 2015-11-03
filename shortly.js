@@ -2,7 +2,10 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-var bcrypt = require('bcrypt-nodejs')
+var bcrypt = require('bcrypt-nodejs');
+var cookieParser = require('cookie-parser');
+var passport = require('passport');
+var session = require('express-session');
 
 
 var db = require('./app/config');
@@ -12,7 +15,12 @@ var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 
+
+// var passport = require('passport');
 var app = express();
+app.use(cookieParser());
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -22,14 +30,25 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({
+  secret: 'secret',
+  resave:false,
+  saveUninitialized: true
+}));
 
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+passport.deserializeUser(function(obj, done) {
+  done(null, obj);
+})
 
-app.get('/', 
+app.get('/', util.checkUser,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create', util.checkUser,
 function(req, res) {
   res.render('index');
 });
@@ -87,7 +106,8 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
-app.post('/signup', function(req, res) {
+app.post('/signup', 
+function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
   new User({username: username}).fetch().then(function(found) {
@@ -96,18 +116,40 @@ app.post('/signup', function(req, res) {
       var message = {message: "<div>Sorry!  You already have an account!</div>"};
       res.render('signup', message);
     } else {
-      bcrypt.hash("req.body.password", null, null, function(err, hash) {
-        var user = new User({username: username, password: hash});
-      });
-      user.save().then(function(newUser) {
-        Users.add(newUser);
-        req.session.isAuthenticated = true;
-        res.redirect('/');
+      bcrypt.hash(req.body.password, null, null, function(err, hash) {
+        var user = new User({username: username, password_hash: hash});
+        user.save().then(function(newUser) {
+          Users.add(newUser);
+          req.session.isAuthenticated = true;
+          res.redirect('/');
+        });
       });
     }
   });
 });
-// Users.add(user)
+
+app.post('/login', 
+function(req, res) {
+  var p = req.body.password;
+  new User({username: req.body.username}).fetch().then(function(user) {
+    if(user) {
+      bcrypt.compare(p, user.attributes.password_hash, function(err, result) {
+        if(result) {
+          req.session.isAuthenticated = true;
+          res.redirect('/');
+        } else {
+          var message = {message: '<div class="alert alert-danger">Password is incorrect!</div>'};
+          res.render('login', message);
+        }
+      });
+     
+    } else {
+          var message = {message: '<div class="alert alert-danger">Username does not exist!</div>'};
+          res.render('login', message);
+      }
+  });
+});
+
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail

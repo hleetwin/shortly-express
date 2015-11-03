@@ -21,3 +21,4 @@ var Link = db.Model.extend({
 });
 
 module.exports = Link;
+
